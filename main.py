@@ -83,11 +83,18 @@ class Order:
         self.courier: Courier | None = None
         self.status = "создан"
 
+    def add_item(self, item: OrderItem) -> None:
+        if self.status != "создан":
+            raise ValueError("Позиции можно добавлять только в созданный заказ")
+
+        self.items.append(item)
+
     def assign_courier(self, courier: Courier) -> None:
         self.courier = courier
 
     def calculate_total_price(self) -> float:
-        return sum(item.get_total_price() for item in self.items)
+        items_price = sum(item.get_total_price() for item in self.items)
+        return items_price + self.delivery_method.calculate_cost()
 
     def change_status(self, new_status: str) -> None:
         self.status = new_status
