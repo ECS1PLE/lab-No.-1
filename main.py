@@ -45,6 +45,27 @@ class DeliveryMethod(ABC):
     def estimate_time(self) -> str:
         ...
 
+class StandartDelivery(DeliveryMethod):
+    def calculate_cost(self) -> float:
+        return 350.0 
+
+    def estimate_time(self) -> str:
+        return "Доставка через 3-5 дней"
+
+class ExpressDelivery(DeliveryMethod):
+    def calculate_cost(self) -> float:
+        return 500.0 
+
+    def estimate_time(self) -> str:
+        return "Доставчка через 1-2 дня"
+
+class PickupDelivery(DeliveryMethod):
+    def calculate_cost(self) -> float:
+        return 0.0 
+
+    def estimate_time(self) -> str:
+        return "Готов через 30 минут"
+
 class Order:
     def __init__(
         self,
