@@ -21,6 +21,26 @@ class Courier:
     def accept_order(self, order: "Order") -> None:
         order.assign_courier(self)
 
+class Couriers:
+    def __init__(self):
+        self.__couriers: list[Courier] = []
+
+    def add_courier(self, courier: Courier) -> None:
+        courier_id = courier.id
+        for courier in self.__couriers:
+            if courier.id == courier_id:
+                raise ValueError("Курьер с таким ID уже существует")
+        self.__couriers.append(courier)
+
+    def get_available_couriers(self) -> list[Courier]:
+        return [courier for courier in self.__couriers if courier.is_available]
+
+    def get_courier_by_id(self, courier_id: int) -> Courier:
+        for courier in self.__couriers:
+            if courier.id == courier_id:
+                return courier
+
+        raise ValueError("Курьер с таким ID не существует")
 
 class OrderItem:
     def __init__(self, name: str, quantity: int, price: float):
@@ -174,8 +194,9 @@ class Orders:
         return self.__orders.copy()
 
 class ConsoleApp:
-    def __init__(self, orders: Orders):
+    def __init__(self, orders: Orders, couriers: Couriers):
         self.orders = orders
+        self.couriers = couriers
 
     @staticmethod
     def good_print(message: str) -> None:
@@ -199,7 +220,7 @@ class ConsoleApp:
             elif command == "2":
                 self.show_orders()
             elif command == "3":
-                self.choose_delivery()
+                self.choose_delivery(num=int(input("Введите номер способа доставки: ")))
             elif command == "4":
                 self.assign_courier()
             elif command == "5":
@@ -212,17 +233,54 @@ class ConsoleApp:
 
 
     def create_order(self) -> None:
-        pass
+        print("\nСоздание заказа")
+        try:
+            order_id = int(input("Введите ID заказа: "))
+            client_id = int(input("Введите ID клиента: "))
+            client_name = input("Введите имя клиента: ")
+            client_phone = input("Введите телефон клиента: ")
+            client_address = input("Введите адрес клиента: ")
+            client = Client(client_id, client_name, client_phone, client_address)
+
+            items = []
+            while True:
+                item_name = input("Введите название позиции (или '0' для завершения): ")
+                if item_name == "0":
+                    break
+                item_quantity = int(input("Введите количество позиции: "))
+                item_price = float(input("Введите цену позиции: "))
+                item = OrderItem(item_name, item_quantity, item_price)
+                items.append(item)
+
+            print("\nВыберите способ доставки:")
+            print("1. Стандартная доставка")
+            print("2. Экспресс-доставка")
+            print("3. Самовывоз")
+            delivery_choice = int(input("Введите номер способа доставки: "))
+            delivery_method = self.choose_delivery(num=delivery_choice)
+
+            order = Order(order_id, client, client_address, items, delivery_method)
+            self.orders.add_order(order)
+            self.good_print(f"Заказ с ID {order_id} успешно создан")
+        except ValueError as e:
+            self.good_print(f"Ошибка при создании заказа: {e}")
 
     def show_orders(self) -> None:
         if not self.orders.get_all_orders():
             self.good_print("Заказов нет")
             return
         for order in self.orders.get_all_orders():
-            self.good_print(f"ID: {order.id}, Статус: {order.status}, Итого: {order.calculate_total_price()}")
+            self.good_print(f"ID: {order.id}, Статус: {order.status}, Адрес: {order.address}, Элементы: {', '.join([f'{item.name} (x{item.quantity})' for item in order.items])}, Итого: {order.calculate_total_price()}")
 
-    def choose_delivery(self) -> None:
-        pass
+    def choose_delivery(self, num: int) -> DeliveryMethod:
+        if num == 1:
+            return StandartDelivery()
+        elif num == 2:
+            return ExpressDelivery()
+        elif num == 3:
+            return PickupDelivery()
+        else:
+            raise ValueError("Неверный выбор доставки")
 
     def assign_courier(self) -> None:
         pass
@@ -231,5 +289,14 @@ class ConsoleApp:
         pass
 
 orders = Orders()
-app = ConsoleApp(orders)
+
+couriers = Couriers()
+couriers.add_courier(
+    Courier(1, "Иван", "+79990000001")
+)
+couriers.add_courier(
+    Courier(2, "Алексей", "+79990000002")
+)
+
+app = ConsoleApp(orders, couriers)
 app.run()
