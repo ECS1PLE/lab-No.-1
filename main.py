@@ -212,14 +212,48 @@ class ConsoleApp:
 
 
     def create_order(self) -> None:
-        pass
+        print("\nСоздание заказа")
+        try:
+            order_id = int(input("Введите ID заказа: "))
+            client_id = int(input("Введите ID клиента: "))
+            client_name = input("Введите имя клиента: ")
+            client_phone = input("Введите телефон клиента: ")
+            client_address = input("Введите адрес клиента: ")
+            client = Client(client_id, client_name, client_phone, client_address)
+
+            items = []
+            while True:
+                item_name = input("Введите название позиции (или '0' для завершения): ")
+                if item_name == "0":
+                    break
+                item_quantity = int(input("Введите количество позиции: "))
+                item_price = float(input("Введите цену позиции: "))
+                item = OrderItem(item_name, item_quantity, item_price)
+                items.append(item)
+
+            delivery_choice = input("Выберите способ доставки (1 - Стандартная, 2 - Экспресс, 3 - Самовывоз): ")
+            if delivery_choice == "1":
+                delivery_method = StandartDelivery()
+            elif delivery_choice == "2":
+                delivery_method = ExpressDelivery()
+            elif delivery_choice == "3":
+                delivery_method = PickupDelivery()
+            else:
+                self.good_print("Неверный выбор доставки")
+                return
+
+            order = Order(order_id, client, client_address, items, delivery_method)
+            self.orders.add_order(order)
+            self.good_print(f"Заказ с ID {order_id} успешно создан")
+        except ValueError as e:
+            self.good_print(f"Ошибка при создании заказа: {e}")
 
     def show_orders(self) -> None:
         if not self.orders.get_all_orders():
             self.good_print("Заказов нет")
             return
         for order in self.orders.get_all_orders():
-            self.good_print(f"ID: {order.id}, Статус: {order.status}, Итого: {order.calculate_total_price()}")
+            self.good_print(f"ID: {order.id}, Статус: {order.status}, Адрес: {order.address}, Элементы: {', '.join([f'{item.name} (x{item.quantity})' for item in order.items])}, Итого: {order.calculate_total_price()}")
 
     def choose_delivery(self) -> None:
         pass
