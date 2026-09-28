@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class Client:
     def __init__(self, id: int, name: str, phone: str, address: str):
         self.id = id
@@ -21,14 +22,15 @@ class Courier:
     def accept_order(self, order: "Order") -> None:
         order.assign_courier(self)
 
+
 class Couriers:
     def __init__(self):
         self.__couriers: list[Courier] = []
 
     def add_courier(self, courier: Courier) -> None:
         courier_id = courier.id
-        for courier in self.__couriers:
-            if courier.id == courier_id:
+        for existing_courier in self.__couriers:
+            if existing_courier.id == courier_id:
                 raise ValueError("Курьер с таким ID уже существует")
         self.__couriers.append(courier)
 
@@ -39,9 +41,8 @@ class Couriers:
         for courier in self.__couriers:
             if courier.id == courier_id:
                 return courier
-
         raise ValueError("Курьер с таким ID не существует")
-
+        
 class OrderItem:
     def __init__(self, name: str, quantity: int, price: float):
         self.name = name
@@ -63,6 +64,7 @@ class OrderItem:
 
 class DeliveryMethod(ABC):
     requires_courier = True
+
     @abstractmethod
     def calculate_cost(self) -> float:
         ...
@@ -73,34 +75,37 @@ class DeliveryMethod(ABC):
 
 class StandartDelivery(DeliveryMethod):
     def calculate_cost(self) -> float:
-        return 350.0 
+        return 350.0
 
     def estimate_time(self) -> str:
         return "Доставка через 3-5 дней"
 
+
 class ExpressDelivery(DeliveryMethod):
     def calculate_cost(self) -> float:
-        return 500.0 
+        return 500.0
 
     def estimate_time(self) -> str:
         return "Доставчка через 1-2 дня"
 
+
 class PickupDelivery(DeliveryMethod):
     requires_courier = False
     def calculate_cost(self) -> float:
-        return 0.0 
+        return 0.0
 
     def estimate_time(self) -> str:
         return "Готов через 30 минут"
 
+
 class Order:
     def __init__(
-        self,
-        id: int,
-        client: Client,
-        address: str,
-        items: list[OrderItem],
-        delivery_method: DeliveryMethod,
+            self,
+            id: int,
+            client: Client,
+            address: str,
+            items: list[OrderItem],
+            delivery_method: DeliveryMethod,
     ):
         self.id = id
         self.client = client
@@ -110,7 +115,7 @@ class Order:
         self.courier: Courier | None = None
         self.status = "создан"
         self.check_items()
-    
+
     def add_item(self, item: OrderItem) -> None:
         if self.status != "создан":
             raise ValueError("Позиции можно добавлять только в созданный заказ")
@@ -157,11 +162,20 @@ class Order:
 
         if new_status == "готов к самовывозу" and self.delivery_method.requires_courier:
             raise ValueError("Этот статус доступен только для самовывоза")
-        
+            
         self.status = new_status
 
         if new_status in ["доставлен", "завершен", "отменен"] and self.courier is not None:
             self.courier.is_available = True
+
+    def change_delivery_method(self, new_method: DeliveryMethod) -> None:
+        if self.status not in ["создан", "подтвержден"]:
+            raise ValueError("Изменить способ доставки можно только до отправки заказа")
+
+        if self.courier is not None and not new_method.requires_courier:
+            self.courier.is_available = True
+            self.courier = None
+        self.delivery_method = new_method
 
     def check_items(self) -> None:
         if not self.items:
@@ -170,18 +184,17 @@ class Order:
         for item in self.items:
             item.check_price()
             item.check_quantity()
-
+            
 class Orders:
     def __init__(self):
         self.__orders: list[Order] = []
 
     def add_order(self, order: Order) -> None:
         order_id = order.id
-        for order in self.__orders:
-            if order.id == order_id:
-                raise ValueError("Заказ с таким ID уже существует")    
+        for existing_order in self.__orders:
+            if existing_order.id == order_id:
+                raise ValueError("Заказ с таким ID уже существует")
         self.__orders.append(order)
-        
 
     def get_order_by_id(self, order_id: int) -> Order:
         for order in self.__orders:
@@ -203,7 +216,7 @@ class ConsoleApp:
         print("\n" + "-" * 30)
         print(message)
         print("-" * 30)
-    
+
     def run(self) -> None:
         while True:
             print("\n1. Создать заказ")
@@ -220,7 +233,7 @@ class ConsoleApp:
             elif command == "2":
                 self.show_orders()
             elif command == "3":
-                self.choose_delivery(num=int(input("Введите номер способа доставки: ")))
+                self.update_order_delivery()
             elif command == "4":
                 self.assign_courier()
             elif command == "5":
@@ -230,7 +243,6 @@ class ConsoleApp:
                 break
             else:
                 self.good_print("Такой команды нет")
-
 
     def create_order(self) -> None:
         print("\nСоздание заказа")
@@ -266,11 +278,21 @@ class ConsoleApp:
             self.good_print(f"Ошибка при создании заказа: {e}")
 
     def show_orders(self) -> None:
-        if not self.orders.get_all_orders():
+        orders = self.orders.get_all_orders()
+        if not orders:
             self.good_print("Заказов нет")
             return
-        for order in self.orders.get_all_orders():
-            self.good_print(f"ID: {order.id}, Статус: {order.status}, Адрес: {order.address}, Элементы: {', '.join([f'{item.name} (x{item.quantity})' for item in order.items])}, Итого: {order.calculate_total_price()}")
+
+        for order in orders:
+            courier_name = order.courier.name if order.courier else "Не назначен"
+            items_str = ', '.join([f'{item.name} (x{item.quantity})' for item in order.items])
+
+            info = (f"ID: {order.id} | Статус: {order.status} | Адрес: {order.address}\n"
+                    f"Имя заказчика: {order.client.name} | Телефон: {order.client.phone}\n"
+                    f"Элементы: {items_str} \n"
+                    f"Доставка: {order.delivery_method.estimate_time()} | Курьер: {courier_name} | Адрес: {order.client.address}\n"
+                    f"Итого: {order.calculate_total_price()} руб.")
+            self.good_print(info)
 
     def choose_delivery(self, num: int) -> DeliveryMethod:
         if num == 1:
@@ -282,11 +304,61 @@ class ConsoleApp:
         else:
             raise ValueError("Неверный выбор доставки")
 
+    def update_order_delivery(self) -> None:
+
+        try:
+            order_id = int(input("Введите ID заказа: "))
+            order = self.orders.get_order_by_id(order_id)
+
+            print("\n1. Стандартная доставка\n2. Экспресс-доставка\n3. Самовывоз")
+            delivery_choice = int(input("Введите номер нового способа доставки: "))
+            new_delivery = self.choose_delivery(delivery_choice)
+
+            order.change_delivery_method(new_delivery)
+
+            self.good_print(f"Доставка обновлена. Ориентировочный срок: {new_delivery.estimate_time()}\n"
+                            f"Новая итоговая стоимость заказа: {order.calculate_total_price()}")
+        except ValueError as e:
+            self.good_print(f"Ошибка: {e}")
+
     def assign_courier(self) -> None:
-        pass
+        try:
+            order_id = int(input("Введите ID заказа: "))
+            order = self.orders.get_order_by_id(order_id)
+
+            available_couriers = self.couriers.get_available_couriers()
+            if not available_couriers:
+                self.good_print("В данный момент нет доступных курьеров")
+                return
+
+            print("\nДоступные курьеры:")
+            for c in available_couriers:
+                print(f"ID: {c.id}, Имя: {c.name}")
+
+            courier_id = int(input("Введите ID курьера: "))
+            courier = self.couriers.get_courier_by_id(courier_id)
+
+            order.assign_courier(courier)
+            self.good_print(f"Курьер {courier.name} успешно назначен на заказ {order.id}")
+        except ValueError as e:
+            self.good_print(f"Ошибка: {e}")
 
     def change_order_status(self) -> None:
-        pass
+        try:
+            order_id = int(input("Введите ID заказа: "))
+            order = self.orders.get_order_by_id(order_id)
+
+            print(f"Текущий статус: {order.status}")
+            new_status = input(
+                "Введите новый статус (подтвержден, в пути, доставлен, готов к самовывозу, завершен, отменен): ")
+
+            order.change_status(new_status.lower())
+
+            courier_info = f", Курьер: {order.courier.name}" if order.courier else ", Курьер: не назначен"
+            self.good_print(f"Статус успешно изменен!\nЗаказ {order.id}: {order.status}{courier_info}")
+        except ValueError as e:
+            self.good_print(f"Ошибка при изменении статуса: {e}")
+
 
 orders = Orders()
 
