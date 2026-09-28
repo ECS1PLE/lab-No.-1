@@ -41,10 +41,8 @@ class Couriers:
         for courier in self.__couriers:
             if courier.id == courier_id:
                 return courier
-
         raise ValueError("Курьер с таким ID не существует")
-
-
+        
 class OrderItem:
     def __init__(self, name: str, quantity: int, price: float):
         self.name = name
@@ -64,7 +62,6 @@ class OrderItem:
             raise ValueError("Количество должно быть положительным")
         return True
 
-
 class DeliveryMethod(ABC):
     requires_courier = True
 
@@ -75,7 +72,6 @@ class DeliveryMethod(ABC):
     @abstractmethod
     def estimate_time(self) -> str:
         ...
-
 
 class StandartDelivery(DeliveryMethod):
     def calculate_cost(self) -> float:
@@ -95,7 +91,6 @@ class ExpressDelivery(DeliveryMethod):
 
 class PickupDelivery(DeliveryMethod):
     requires_courier = False
-
     def calculate_cost(self) -> float:
         return 0.0
 
@@ -167,7 +162,7 @@ class Order:
 
         if new_status == "готов к самовывозу" and self.delivery_method.requires_courier:
             raise ValueError("Этот статус доступен только для самовывоза")
-
+            
         self.status = new_status
 
         if new_status in ["доставлен", "завершен", "отменен"] and self.courier is not None:
@@ -189,8 +184,7 @@ class Order:
         for item in self.items:
             item.check_price()
             item.check_quantity()
-
-
+            
 class Orders:
     def __init__(self):
         self.__orders: list[Order] = []
@@ -211,7 +205,6 @@ class Orders:
 
     def get_all_orders(self) -> list[Order]:
         return self.__orders.copy()
-
 
 class ConsoleApp:
     def __init__(self, orders: Orders, couriers: Couriers):
