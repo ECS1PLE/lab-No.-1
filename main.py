@@ -105,7 +105,6 @@ class Couriers:
         for courier in self.__couriers:
             if courier.id == courier_id:
                 return courier
-
         raise ValueError("Курьер с таким ID не существует")
 
     def get_all_couriers(self) -> tuple[Courier, ...]:
@@ -192,6 +191,7 @@ class ExpressDelivery(DeliveryMethod):
 
     def estimate_time(self) -> str:
         return "Доставка через 1-2 дня"
+
 
 
 class PickupDelivery(DeliveryMethod):
@@ -377,6 +377,15 @@ class Order:
             self.__courier = None
 
         self.__delivery_method = new_method
+
+    def change_delivery_method(self, new_method: DeliveryMethod) -> None:
+        if self.status not in ["создан", "подтвержден"]:
+            raise ValueError("Изменить способ доставки можно только до отправки заказа")
+
+        if self.courier is not None and not new_method.requires_courier:
+            self.courier.is_available = True
+            self.courier = None
+        self.delivery_method = new_method
 
     def check_items(self) -> None:
         if not self.__items:
@@ -667,6 +676,23 @@ class ConsoleApp:
             self.good_print(
                 f"Ошибка: {e}"
             )
+
+    def update_order_delivery(self) -> None:
+
+        try:
+            order_id = int(input("Введите ID заказа: "))
+            order = self.orders.get_order_by_id(order_id)
+
+            print("\n1. Стандартная доставка\n2. Экспресс-доставка\n3. Самовывоз")
+            delivery_choice = int(input("Введите номер нового способа доставки: "))
+            new_delivery = self.choose_delivery(delivery_choice)
+
+            order.change_delivery_method(new_delivery)
+
+            self.good_print(f"Доставка обновлена. Ориентировочный срок: {new_delivery.estimate_time()}\n"
+                            f"Новая итоговая стоимость заказа: {order.calculate_total_price()}")
+        except ValueError as e:
+            self.good_print(f"Ошибка: {e}")
 
     def assign_courier(self) -> None:
         try:
