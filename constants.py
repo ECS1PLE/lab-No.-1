@@ -1,0 +1,7 @@
+STATUS_CREATED = "создан"
+STATUS_CONFIRMED = "подтвержден"
+STATUS_IN_TRANSIT = "в пути"
+STATUS_DELIVERED = "доставлен"
+STATUS_CANCELLED = "отменен"
+STATUS_READY_FOR_PICKUP = "готов к самовывозу"
+STATUS_COMPLETED = "завершен"
