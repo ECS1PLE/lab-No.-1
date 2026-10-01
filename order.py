@@ -27,9 +27,6 @@ class Order:
             raise ValueError("ID заказа должен быть положительным")
         if not address.strip():
             raise ValueError("Адрес доставки не может быть пустым")
-        if not items:
-            raise ValueError("В заказе должна быть хотя бы одна позиция")
-
         self.__id = order_id
         self.__client = client
         self.__address = address.strip()

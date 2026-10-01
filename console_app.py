@@ -50,33 +50,33 @@ class ConsoleApp:
 
             command = input("Выберите действие: ")
 
-            if command == "1":
-                self.create_order()
+            match command:
+                case "1":
+                    self.create_order()
 
-            elif command == "2":
-                self.show_orders()
+                case "2":
+                    self.show_orders()
 
-            elif command == "3":
-                self.update_order_delivery()
+                case "3":
+                    self.update_order_delivery()
 
-            elif command == "4":
-                self.assign_courier()
+                case "4":
+                    self.assign_courier()
 
-            elif command == "5":
-                self.change_order_status()
+                case "5":
+                    self.change_order_status()
 
-            elif command == "6":
-                self.add_storage_item()
+                case "6":
+                    self.add_storage_item()
 
-            elif command == "7":
-                self.__storage.show_items()
+                case "7":
+                    self.__storage.show_items()
 
-            elif command == "0":
-                self.good_print("Работа завершена")
-                break
-
-            else:
-                self.good_print("Такой команды нет")
+                case "0":
+                    self.good_print("Работа завершена")
+                    break
+                case _:
+                    self.good_print("Неверная команда")
 
     def show_available_items(
         self,
@@ -133,118 +133,91 @@ class ConsoleApp:
                 f"Ошибка при изменении склада: {e}"
             )
 
+    def read_positive_int(self, text: str, maximum: int | None = None) -> int:
+        while True:
+            try:
+                value = int(input(text))
+                if value <= 0:
+                    raise ValueError("Введите положительное целое число")
+                if maximum is not None and value > maximum:
+                    raise ValueError(
+                        f"Недостаточно товара на складе: доступно {maximum} шт."
+                    )
+                return value
+            except ValueError as error:
+                self.good_print(f"Ошибка: {error}")
+
+    def read_required_text(self, text: str) -> str:
+        while True:
+            value = input(text).strip()
+            if value:
+                return value
+            self.good_print("Поле не может быть пустым")
+
     def create_order(self) -> None:
         print("\nСоздание заказа")
+        if not any(item["quantity"] > 0 for item in self.__storage.items.values()):
+            self.good_print("На складе нет доступных товаров")
+            return
 
-        try:
-            order_id = int(
-                input("Введите ID заказа: ")
-            )
+        while True:
+            order_id = self.read_positive_int("Введите ID заказа: ")
+            if all(order.id != order_id for order in self.__orders.get_all_orders()):
+                break
+            self.good_print("Заказ с таким ID уже существует")
 
-            client_id = int(
-                input("Введите ID клиента: ")
-            )
+        client_id = self.read_positive_int("Введите ID клиента: ")
+        client_name = self.read_required_text("Введите имя клиента: ")
+        client_phone = self.read_required_text("Введите телефон клиента: ")
+        client_address = self.read_required_text("Введите адрес клиента: ")
+        client = Client(client_id, client_name, client_phone, client_address)
+        items = []
 
-            client_name = input(
-                "Введите имя клиента: "
-            )
-
-            client_phone = input(
-                "Введите телефон клиента: "
-            )
-
-            client_address = input(
-                "Введите адрес клиента: "
-            )
-
-            client = Client(
-                client_id,
-                client_name,
-                client_phone,
-                client_address,
-            )
-
-            items = []
-
-            while True:
-                self.show_available_items(items)
-                item_name = input(
-                    "Введите название позиции "
-                    "(или '0' для завершения): "
-                ).strip().lower()
-
-                if item_name == "0":
+        while True:
+            self.show_available_items(items)
+            item_name = input(
+                "Введите название позиции (или '0' для завершения): "
+            ).strip().lower()
+            if item_name == "0":
+                if items:
                     break
+                self.good_print("В заказе должна быть хотя бы одна позиция")
+                continue
 
+            try:
                 stock_item = self.__storage.get_current_item(item_name)
-                if stock_item["quantity"] <= 0:
-                    raise ValueError("Товар отсутствует в доступном списке")
-
-                item_quantity = int(
-                    input(
-                        "Введите количество позиции: "
-                    )
-                )
-
-                if item_quantity <= 0:
-                    raise ValueError("Количество должно быть положительным")
-
                 selected_quantity = sum(
-                    item.quantity
-                    for item in items
-                    if item.name == item_name
+                    item.quantity for item in items if item.name == item_name
                 )
                 available_quantity = stock_item["quantity"] - selected_quantity
-                if item_quantity > available_quantity:
-                    raise ValueError(
-                        f"Недостаточно товара на складе: "
-                        f"доступно {available_quantity} шт."
-                    )
+                if available_quantity <= 0:
+                    raise ValueError("Товар отсутствует в доступном списке")
+            except ValueError as error:
+                self.good_print(f"Ошибка: {error}")
+                continue
 
-                item = OrderItem(
-                    item_name,
-                    item_quantity,
-                    stock_item["price"],
-                )
-
-                items.append(item)
-
-            print("\nВыберите способ доставки:")
-            print("1. Стандартная доставка")
-            print("2. Экспресс-доставка")
-            print("3. Самовывоз")
-
-            delivery_choice = int(
-                input(
-                    "Введите номер способа доставки: "
-                )
+            item_quantity = self.read_positive_int(
+                "Введите количество позиции: ", maximum=available_quantity
             )
+            items.append(OrderItem(item_name, item_quantity, stock_item["price"]))
 
-            delivery_method = self.choose_delivery(
-                delivery_choice
-            )
+        print("\nВыберите способ доставки:")
+        print("1. Стандартная доставка")
+        print("2. Экспресс-доставка")
+        print("3. Самовывоз")
+        while True:
+            delivery_choice = self.read_positive_int("Введите номер способа доставки: ")
+            try:
+                delivery_method = self.choose_delivery(delivery_choice)
+                break
+            except ValueError as error:
+                self.good_print(f"Ошибка: {error}")
 
-            order = Order(
-                order_id,
-                client,
-                client_address,
-                items,
-                delivery_method,
-            )
-
-            self.__orders.add_order(order)
-
-            for item in order.items:
-                self.__storage.take_items(item.name, item.quantity)
-
-            self.good_print(
-                f"Заказ с ID {order_id} успешно создан"
-            )
-
-        except ValueError as e:
-            self.good_print(
-                f"Ошибка при создании заказа: {e}"
-            )
+        order = Order(order_id, client, client_address, items, delivery_method)
+        self.__orders.add_order(order)
+        for item in order.items:
+            self.__storage.take_items(item.name, item.quantity)
+        self.good_print(f"Заказ с ID {order_id} успешно создан")
 
     def show_order(self, order: Order) -> None:
         if order.courier is not None:
@@ -295,18 +268,15 @@ class ConsoleApp:
         self,
         num: int,
     ) -> DeliveryMethod:
-        if num == 1:
-            return StandardDelivery()
-
-        if num == 2:
-            return ExpressDelivery()
-
-        if num == 3:
-            return PickupDelivery()
-
-        raise ValueError(
-            "Неверный выбор доставки"
-        )
+        match num:
+            case 1:
+                return StandardDelivery()
+            case 2:
+                return ExpressDelivery()
+            case 3:
+                return PickupDelivery()
+            case _:
+                raise ValueError("Неверный выбор доставки")
 
     def update_order_delivery(self) -> None:
         try:
@@ -393,7 +363,7 @@ class ConsoleApp:
                 )
             )
 
-            order.assign_courier(courier)
+            courier.accept_order(order)
 
             self.good_print(
                 f"Курьер {courier.name} "
@@ -428,8 +398,12 @@ class ConsoleApp:
             )
 
             order.change_status(
-                new_status.lower()
+                new_status.strip().lower()
             )
+
+            if order.status == STATUS_CANCELLED:
+                for item in order.items:
+                    self.__storage.return_items(item.name, item.quantity, item.price)
 
             self.good_print(
                 "Статус успешно изменен!"
