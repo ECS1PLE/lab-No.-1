@@ -59,3 +59,39 @@ def test_missing_courier(populated, courier):
         couriers.add_courier(courier)
     with pytest.raises(ValueError, match="не существует"):
         couriers.get_courier_by_id(99)
+
+
+def test_add_courier_from_fields_rejects_busy_duplicate(courier):
+    couriers = Couriers()
+    couriers.add_courier(courier)
+    courier.mark_busy()
+    with pytest.raises(ValueError, match="уже существует"):
+        couriers.add_couriers(1, "Петр", "456", good_print=print)
+    assert couriers.get_all_couriers() == (courier,)
+    assert not courier.is_available
+
+
+@pytest.mark.parametrize("args", [
+    (0, "Петр", "456"), (-1, "Петр", "456"),
+])
+def test_add_courier_from_invalid_fields_keeps_collection(args):
+    couriers = Couriers()
+    with pytest.raises(ValueError):
+        couriers.add_couriers(*args, good_print=print)
+    assert couriers.get_all_couriers() == ()
+
+
+@pytest.mark.parametrize("name, phone, answers", [
+    (" \t", "456", ["Петр"]),
+    ("Петр123", "456", ["Петр"]),
+    ("Петр", " \t", ["456"]),
+    ("Петр", "abc", ["456"]),
+])
+def test_add_couriers_validates_supplied_fields_and_retries(interact, name, phone, answers):
+    couriers = Couriers()
+    messages = []
+    interact(lambda: couriers.add_couriers(2, name, phone, good_print=messages.append), answers)
+    assert len(messages) == 1
+    assert "заново" in messages[0]
+    courier = couriers.get_courier_by_id(2)
+    assert (courier.name, courier.phone) == ("Петр", "456")

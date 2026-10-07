@@ -138,7 +138,7 @@ def test_assignment_invalid_courier(app_env, order, interact, courier_id):
 @pytest.mark.parametrize("command, method", [
     ("1", "create_order"), ("2", "show_orders"), ("3", "update_order_delivery"),
     ("4", "assign_courier"), ("5", "change_order_status"), ("6", "add_storage_item"),
-    ("7", "show_items"),
+    ("7", "show_items"), ("8", "add_courier"),
 ])
 def test_menu_dispatches_and_returns_to_menu(app_env, interact, monkeypatch, command, method):
     calls = []
@@ -148,3 +148,154 @@ def test_menu_dispatches_and_returns_to_menu(app_env, interact, monkeypatch, com
     assert calls == [method]
     assert output.count("Выбрать доставку") == 2
     assert "Работа завершена" in output
+
+
+def test_menu_adds_courier_and_assigns_to_order(app_env, order, interact):
+    app_env.orders.add_order(order)
+    _, output = interact(app_env.app.run, [
+        "8", " 2 ", " Петр ", " +79990000002 ", "4", "1", "2", "0",
+    ])
+    courier = app_env.couriers.get_courier_by_id(2)
+    assert (courier.name, courier.phone) == ("Петр", "+79990000002")
+    assert order.courier is courier
+    assert not courier.is_available
+    assert "8. Добавить курьера" in output
+    assert "Курьер с ID 2 успешно добавлен" in output
+    assert "Ошибка" not in output
+
+
+@pytest.mark.parametrize("answers, message", [
+    (["abc", "2", "Петр", "456"], "Ошибка:"),
+    (["1.5", "2", "Петр", "456"], "Ошибка:"),
+    (["0", "2", "Петр", "456"], "Введите положительное целое число"),
+    (["-2", "2", "Петр", "456"], "Введите положительное целое число"),
+    (["1", "2", "Петр", "456"], "Курьер с таким ID уже существует"),
+    (["2", " \t", "Петр", "456"], "Поле не может быть пустым"),
+    (["2", "Петр", " \t", "456"], "Поле не может быть пустым"),
+])
+def test_menu_retries_invalid_courier_field(app_env, interact, answers, message):
+    _, output = interact(app_env.app.run, ["8", *answers, "0"])
+    assert message in output
+    assert "Работа завершена" in output
+    courier = app_env.couriers.get_courier_by_id(2)
+    assert (courier.name, courier.phone) == ("Петр", "456")
+    assert courier.is_available
+    assert app_env.couriers.get_all_couriers() == (app_env.courier, courier)
+
+
+def test_duplicate_courier_id_reports_error_before_retry(app_env, monkeypatch, capsys):
+    app_env.courier.mark_busy()
+    prompts = []
+    answers = iter(["1", "2", "Петр", "456"])
+
+    def read(prompt):
+        prompts.append(prompt)
+        if len(prompts) == 2:
+            assert prompt == "Введите ID нового курьера: "
+            assert "Курьер с таким ID уже существует" in capsys.readouterr().out
+            assert app_env.couriers.get_all_couriers() == (app_env.courier,)
+        return next(answers)
+
+    monkeypatch.setattr("builtins.input", read)
+    app_env.app.add_courier()
+    assert prompts == [
+        "Введите ID нового курьера: ", "Введите ID нового курьера: ",
+        "Введите имя курьера: ", "Введите телефон курьера: ",
+    ]
+    assert app_env.couriers.get_courier_by_id(2).name == "Петр"
+    assert not app_env.courier.is_available
+
+
+@pytest.mark.parametrize("name", ["Петр", "Анна-Мария", "Иван Петров", "O'Connor"])
+def test_courier_name_accepts_letters_and_separators(app_env, interact, name):
+    _, output = interact(app_env.app.add_courier, ["2", f" {name} ", "456"])
+    assert app_env.couriers.get_courier_by_id(2).name == name
+    assert "заново" not in output
+
+
+@pytest.mark.parametrize("phone", ["456", "+79990000002"])
+def test_courier_phone_accepts_digits_and_optional_plus(app_env, interact, phone):
+    _, output = interact(app_env.app.add_courier, ["2", "Петр", f" {phone} "])
+    assert app_env.couriers.get_courier_by_id(2).phone == phone
+    assert "заново" not in output
+
+
+def test_courier_fields_retry_immediately_and_preserve_previous_input(app_env, monkeypatch, capsys):
+    steps = iter([
+        ("ID нового курьера", "2", None),
+        ("имя курьера", "Петр123", None),
+        ("имя курьера", "123", "Введите имя заново"),
+        ("имя курьера", "---", "Введите имя заново"),
+        ("имя курьера", "Петр", "Введите имя заново"),
+        ("телефон курьера", "abc", None),
+        ("телефон курьера", "+", "Введите телефон заново"),
+        ("телефон курьера", "++7999", "Введите телефон заново"),
+        ("телефон курьера", "799+9", "Введите телефон заново"),
+        ("телефон курьера", "799 9", "Введите телефон заново"),
+        ("телефон курьера", "+79990000002", "Введите телефон заново"),
+    ])
+
+    def read(prompt):
+        field, answer, error = next(steps)
+        assert field in prompt
+        if error:
+            assert error in capsys.readouterr().out
+            assert app_env.couriers.get_all_couriers() == (app_env.courier,)
+        return answer
+
+    monkeypatch.setattr("builtins.input", read)
+    app_env.app.add_courier()
+    assert list(steps) == []
+    courier = app_env.couriers.get_courier_by_id(2)
+    assert (courier.name, courier.phone) == ("Петр", "+79990000002")
+
+
+@pytest.mark.parametrize("name, phone", [
+    (" Анна-Мария ", " +79990000000 "),
+    ("Иван Петров", "79990000000"),
+    ("O'Connor", "123"),
+])
+def test_order_accepts_valid_client_name_and_phone(app_env, interact, name, phone):
+    _, output = interact(app_env.app.create_order, [
+        "1", "1", name, phone, "Адрес", "мышь", "1", "0", "1",
+    ])
+    client = app_env.orders.get_order_by_id(1).client
+    assert (client.name, client.phone) == (name.strip(), phone.strip())
+    assert "заново" not in output
+
+
+def test_client_fields_retry_immediately_and_preserve_order_input(app_env, monkeypatch, capsys):
+    steps = iter([
+        ("ID заказа", "1", None),
+        ("ID клиента", "2", None),
+        ("имя клиента", "Анна123", None),
+        ("имя клиента", "---", "Введите имя заново"),
+        ("имя клиента", "Анна", "Введите имя заново"),
+        ("телефон клиента", "abc", None),
+        ("телефон клиента", "+", "Введите телефон заново"),
+        ("телефон клиента", "++7999", "Введите телефон заново"),
+        ("телефон клиента", "799 9", "Введите телефон заново"),
+        ("телефон клиента", "+79990000000", "Введите телефон заново"),
+        ("адрес клиента", "Адрес", None),
+        ("название позиции", "мышь", None),
+        ("количество позиции", "1", None),
+        ("название позиции", "0", None),
+        ("номер способа доставки", "1", None),
+    ])
+
+    def read(prompt):
+        field, answer, error = next(steps)
+        assert field in prompt
+        if error:
+            assert error in capsys.readouterr().out
+            assert app_env.orders.get_all_orders() == ()
+            assert app_env.storage.get_current_item("мышь")["quantity"] == 5
+        return answer
+
+    monkeypatch.setattr("builtins.input", read)
+    app_env.app.create_order()
+    assert list(steps) == []
+    order = app_env.orders.get_order_by_id(1)
+    assert (order.client.id, order.client.name, order.client.phone) == (
+        2, "Анна", "+79990000000",
+    )

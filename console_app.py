@@ -46,6 +46,8 @@ class ConsoleApp:
             print("5. Изменить статус")
             print("6. Добавить товар или изменить остаток на складе")
             print("7. Показать товары на складе")
+            print("8. Добавить курьера")
+            print('9. Показать список курьеров')
             print("0. Выход")
 
             command = input("Выберите действие: ")
@@ -72,6 +74,11 @@ class ConsoleApp:
                 case "7":
                     self.__storage.show_items()
 
+                case "8":
+                    self.add_courier()
+
+                case "9":
+                    self.__couriers.show_couriers()
                 case "0":
                     self.good_print("Работа завершена")
                     break
@@ -133,6 +140,23 @@ class ConsoleApp:
                 f"Ошибка при изменении склада: {e}"
             )
 
+    def add_courier(self) -> None:
+        print("\nДобавление курьера")
+
+        while True:
+            courier_id = self.read_positive_int("Введите ID нового курьера: ")
+            id_exists = False
+            for courier in self.__couriers.get_all_couriers():
+                if courier.id == courier_id:
+                    id_exists = True
+                    break
+            if not id_exists:
+                break
+            self.good_print("Ошибка: Курьер с таким ID уже существует")
+
+        self.__couriers.add_couriers(courier_id, good_print=self.good_print)
+        self.good_print(f"Курьер с ID {courier_id} успешно добавлен")
+
     def read_positive_int(self, text: str, maximum: int | None = None) -> int:
         while True:
             try:
@@ -153,22 +177,32 @@ class ConsoleApp:
             if value:
                 return value
             self.good_print("Поле не может быть пустым")
-
+    
     def create_order(self) -> None:
         print("\nСоздание заказа")
-        if not any(item["quantity"] > 0 for item in self.__storage.items.values()):
+        has_available_items = False
+        for item in self.__storage.items.values():
+            if item["quantity"] > 0:
+                has_available_items = True
+                break
+        if not has_available_items:
             self.good_print("На складе нет доступных товаров")
             return
 
         while True:
             order_id = self.read_positive_int("Введите ID заказа: ")
-            if all(order.id != order_id for order in self.__orders.get_all_orders()):
+            id_exists = False
+            for order in self.__orders.get_all_orders():
+                if order.id == order_id:
+                    id_exists = True
+                    break
+            if not id_exists:
                 break
             self.good_print("Заказ с таким ID уже существует")
 
         client_id = self.read_positive_int("Введите ID клиента: ")
-        client_name = self.read_required_text("Введите имя клиента: ")
-        client_phone = self.read_required_text("Введите телефон клиента: ")
+        client_name = Client.read_name(self.good_print)
+        client_phone = Client.read_phone(self.good_print)
         client_address = self.read_required_text("Введите адрес клиента: ")
         client = Client(client_id, client_name, client_phone, client_address)
         items = []
@@ -234,6 +268,16 @@ class ConsoleApp:
             for item in order.items
         )
 
+        if (
+            order.status == STATUS_DELIVERED 
+            or order.status == STATUS_CANCELLED 
+            or order.status == STATUS_COMPLETED
+            or order.status == STATUS_READY_FOR_PICKUP
+        ):
+            delivery_time = "-"
+        else:
+            delivery_time = order.delivery_method.estimate_time()
+
         info = (
             f"ID: {order.id}\n"
             f"Статус: {order.status}\n"
@@ -246,7 +290,7 @@ class ConsoleApp:
             f"Стоимость доставки: "
             f"{order.delivery_method.calculate_cost()} руб.\n"
             f"Срок: "
-            f"{order.delivery_method.estimate_time()}\n"
+            f"{delivery_time}\n"
             f"Курьер: {courier_name}\n"
             f"Итого: "
             f"{order.calculate_total_price()} руб."

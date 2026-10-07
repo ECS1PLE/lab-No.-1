@@ -6,7 +6,7 @@ class Courier:
             raise ValueError("Имя курьера не может быть пустым")
         if not phone.strip():
             raise ValueError("Телефон курьера не может быть пустым")
-
+        
         self.__id = courier_id
         self.__name = name.strip()
         self.__phone = phone.strip()
