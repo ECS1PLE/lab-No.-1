@@ -39,6 +39,12 @@ class Storage:
 
         self.__items[name]["quantity"] = quantity
 
+    def return_items(self, name: str, quantity: int, price: float) -> None:
+        name = name.strip().lower()
+        if name in self.__items:
+            price = self.__items[name]["price"]
+        self.add_items(name, quantity, price)
+
     def remove_items(self, name: str) -> None:
         name = name.strip().lower()
 
